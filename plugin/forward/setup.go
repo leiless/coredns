@@ -24,6 +24,7 @@ func setup(c *caddy.Controller) error {
 	if err != nil {
 		return plugin.Error("forward", err)
 	}
+	/// max: Maximum number of upstreams
 	if f.Len() > max {
 		return plugin.Error("forward", fmt.Errorf("more than %d TOs configured: %d", max, f.Len()))
 	}
@@ -86,17 +87,20 @@ func parseStanza(c *caddy.Controller) (*Forward, error) {
 	if !c.Args(&f.from) {
 		return f, c.ArgErr()
 	}
+	log.Infof("> FROM: %v", f.from)
 	f.from = plugin.Host(f.from).Normalize()
 
 	to := c.RemainingArgs()
 	if len(to) == 0 {
 		return f, c.ArgErr()
 	}
+	log.Infof("> TO...: %v", to)
 
 	toHosts, err := parse.HostPortOrFile(to...)
 	if err != nil {
 		return f, err
 	}
+	log.Infof("> toHosts: %v", toHosts)
 
 	transports := make([]string, len(toHosts))
 	for i, host := range toHosts {
@@ -105,6 +109,7 @@ func parseStanza(c *caddy.Controller) (*Forward, error) {
 		f.proxies = append(f.proxies, p)
 		transports[i] = trans
 	}
+	log.Infof("> transports: %v", transports)
 
 	for c.NextBlock() {
 		if err := parseBlock(c, f); err != nil {
@@ -113,6 +118,7 @@ func parseStanza(c *caddy.Controller) (*Forward, error) {
 	}
 
 	if f.tlsServerName != "" {
+		/// [sic] Multiple upstreams are still allowed in this scenario, but they have to use the same tls_servername
 		f.tlsConfig.ServerName = f.tlsServerName
 	}
 	for i := range f.proxies {
@@ -137,6 +143,7 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			ignore[i] = plugin.Host(ignore[i]).Normalize()
 		}
 		f.ignored = ignore
+		log.Infof("> except: %v", f.ignored)
 	case "max_fails":
 		if !c.NextArg() {
 			return c.ArgErr()
@@ -149,6 +156,7 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			return fmt.Errorf("max_fails can't be negative: %d", n)
 		}
 		f.maxfails = uint32(n)
+		log.Infof("> max_fails: %v", f.maxfails)
 	case "health_check":
 		if !c.NextArg() {
 			return c.ArgErr()
@@ -161,16 +169,19 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			return fmt.Errorf("health_check can't be negative: %d", dur)
 		}
 		f.hcInterval = dur
+		log.Infof("> health_check: %v", f.hcInterval)
 	case "force_tcp":
 		if c.NextArg() {
 			return c.ArgErr()
 		}
 		f.opts.forceTCP = true
+		log.Infof("> force_tcp: %v", f.opts.forceTCP)
 	case "prefer_udp":
 		if c.NextArg() {
 			return c.ArgErr()
 		}
 		f.opts.preferUDP = true
+		log.Infof("> prefer_udp: %v", f.opts.preferUDP)
 	case "tls":
 		args := c.RemainingArgs()
 		if len(args) > 3 {
@@ -182,11 +193,13 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			return err
 		}
 		f.tlsConfig = tlsConfig
+		log.Infof("> tls: %v", f.tlsConfig)
 	case "tls_servername":
 		if !c.NextArg() {
 			return c.ArgErr()
 		}
 		f.tlsServerName = c.Val()
+		log.Infof("> tls_servername: %v", f.tlsServerName)
 	case "expire":
 		if !c.NextArg() {
 			return c.ArgErr()
@@ -199,6 +212,7 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 			return fmt.Errorf("expire can't be negative: %s", dur)
 		}
 		f.expire = dur
+		log.Infof("> expire: %v", f.expire)
 	case "policy":
 		if !c.NextArg() {
 			return c.ArgErr()
@@ -213,6 +227,7 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 		default:
 			return c.Errf("unknown policy '%s'", x)
 		}
+		log.Infof("> policy: %v", f.p)
 	case "max_concurrent":
 		if !c.NextArg() {
 			return c.ArgErr()
@@ -226,7 +241,7 @@ func parseBlock(c *caddy.Controller, f *Forward) error {
 		}
 		f.ErrLimitExceeded = errors.New("concurrent queries exceeded maximum " + c.Val())
 		f.maxConcurrent = int64(n)
-
+		log.Infof("> max_concurrent: %v", f.maxConcurrent)
 	default:
 		return c.Errf("unknown property '%s'", c.Val())
 	}

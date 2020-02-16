@@ -30,6 +30,12 @@ func limitTimeout(currentAvg *int64, minValue time.Duration, maxValue time.Durat
 	return maxValue
 }
 
+/*
+ * If weight equals to 1:
+ *	currentAvg += observedDuration - dt
+ *	currentAvg += observedDuration - currentAvg
+ *	currentAvg = observedDuration
+ */
 func averageTimeout(currentAvg *int64, observedDuration time.Duration, weight int64) {
 	dt := time.Duration(atomic.LoadInt64(currentAvg))
 	atomic.AddInt64(currentAvg, int64(observedDuration-dt)/weight)
@@ -43,6 +49,10 @@ func (t *Transport) updateDialTimeout(newDialTime time.Duration) {
 	averageTimeout(&t.avgDialTime, newDialTime, cumulativeAvgWeight)
 }
 
+/*
+ * The second retutned bool value indicate if the persistent conneciton
+ *	is taken from connection poll, i.e. it's a cached connection
+ */
 // Dial dials the address configured in transport, potentially reusing a connection or creating a new one.
 func (t *Transport) Dial(proto string) (*persistConn, bool, error) {
 	// If tls has been configured; use it.
@@ -51,6 +61,7 @@ func (t *Transport) Dial(proto string) (*persistConn, bool, error) {
 	}
 
 	t.dial <- proto
+	/// pc stands for persistent connection
 	pc := <-t.ret
 
 	if pc != nil {

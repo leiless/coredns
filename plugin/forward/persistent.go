@@ -103,6 +103,10 @@ func (t *Transport) cleanup(all bool) {
 			go closeConns(stack)
 			continue
 		}
+		/// true if stack[0].used > time.Now() - t.expire
+		///			stack[0].used + t.expire > time.Now()
+		///	it means it used within expiration time recently
+		///	which indicate the persistent conn is alive
 		if stack[0].used.After(staleTime) {
 			continue
 		}
